@@ -1,0 +1,22 @@
+[package]
+name = "chi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[[bin]]
+name = "spirit"
+path = "chi_bin_spirit.rs"
+
+[[bin]]
+name = "bubble-dump"
+path = "chi_bin_bubbledump.rs"
+
+[[bin]]
+name = "hello-bubble"
+path = "chi_bin_hello_bubble.rs"
+
+[dependencies]
+# Keep minimal for PoC - add as needed

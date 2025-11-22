@@ -1,0 +1,18 @@
+# Build artifacts
+target/
+.tmp/
+*.swp
+*.swo
+*~
+
+# Cargo lock (keep for binaries, ignore for libraries - we're both, keep it)
+# Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
