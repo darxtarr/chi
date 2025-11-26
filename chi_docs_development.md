@@ -8,8 +8,6 @@ Chi is a distributed spatial computing substrate exploring radical departure fro
 
 The name Chi (χ) references flow and energy in physics, appropriate for a system managing state flow across distributed nodes. This project emerged from discussions between Ulli (darxtarr) and Gemini (model instance named Flux) exploring what X11 architects would build with modern hardware (RTX 4080, Jetson Orin, Quest 3). The answer: not a static 2D bitmap blitter, but a scene graph engine with network transparency.
 
-Chi is the spatial ganglion within the broader CHORUS architecture. CHORUS defines a coordination substrate for distributed systems with ganglia (semi-autonomous modules) communicating via deterministic protocols. Chi implements the spatial UI layer, while Chronome provides transport and Flux handles state synchronization. See /home/u/code/chorus/ for CHORUS meta-architecture.
-
 ## Foundational Principles
 
 Apps do not render. Apps produce semantic content bubbles containing data and formatting hints. The Spirit (compositor) consumes bubbles and generates appropriate presentation. An app sending text with color metadata has no knowledge whether it appears in a window, floats in VR space, gets converted to ASCII for terminal display, or routes to text-to-speech. Content and presentation are fully decoupled.
@@ -18,9 +16,25 @@ Network transparency returns as first-class concern. X11 achieved this but lost 
 
 State synchronization uses CRDTs (Conflict-free Replicated Data Types) enabling strong eventual consistency. Multiple apps and viewports manipulate scene graph concurrently. CRDTs merge operations deterministically without coordination overhead. This supports multi-user scenarios: two people with AR headsets see same windows, both can interact, state converges automatically.
 
-Transport layer targets RDMA (Remote Direct Memory Access) over RoCE (RDMA over Converged Ethernet) for sub-10-microsecond latency and zero-copy memory transfer. Initial implementation uses TCP (standard networking, works everywhere) with architecture allowing transparent upgrade to RDMA when appropriate. Soft-RoCE (kernel module RXE) provides RDMA semantics over standard Ethernet cards before dedicated hardware (Mellanox ConnectX) deployment.
+Transport layer targets RDMA (Remote Direct Memory Access) over RoCE (RDMA over Converged Ethernet) for sub-10-microsecond latency and zero-copy memory transfer. This latency target is based on published specifications for dedicated RDMA hardware (e.g., Mellanox ConnectX-4 cards) and has not yet been empirically validated on this testbed. Initial implementation uses TCP (standard networking, works everywhere) with architecture allowing transparent upgrade to RDMA when appropriate. Soft-RoCE (kernel module RXE) provides RDMA semantics over standard Ethernet cards before dedicated hardware deployment.
 
 The repository structure optimizes for LLM code navigation. Flat file layout with descriptive names eliminates deep directory trees requiring iterative exploration. Single ls command reveals complete project structure. Filenames encode hierarchy and purpose. This reduces token consumption during codebase navigation, critical given tight context budgets. Future refactoring will minimize tokens in code itself (variable names, comments, whitespace) without sacrificing clarity.
+
+## Hardware Topology (Actual Testbed)
+
+**Available nodes for Chi development:**
+
+| Node | Hardware | Network | Role |
+|------|----------|---------|------|
+| **Main** | 7800X3D, RTX 4080, 64GB | 192.168.178.95 | Heavy compute, development |
+| **think** | i7-8700, 32GB | 192.168.178.45 | Network testbed, Gemma candidate |
+| **jetsone** | Orin Nano Super, 8GB ARM | 192.168.178.93/94 | Rendering node, Gemma candidate |
+
+**Gemma deployment:** Either think (more RAM, x86) or jetsone (ARM, GPU acceleration). NOT on Pi - insufficient resources.
+
+**Network:** All nodes on same Gigabit Ethernet subnet. RXE (Soft-RoCE) available on Fedora nodes for RDMA testing.
+
+**Note on jetsone:** Currently runs Ubuntu 22.04 desktop (required by NVIDIA JetPack). GUI overhead is not ideal for a lean rendering node, but accepted for now. Cleanup to headless configuration deferred.
 
 ## Current Phase: Network Transparency PoC
 
@@ -76,11 +90,11 @@ Inline tests vs tests/ directory: inline chosen for Phase 1. Tests live in same 
 
 Spirit is not a passive renderer. Embedded AI models provide semantic understanding of content, enabling intelligent composition decisions. This is integrated architecture, not chatbot-on-the-side (contrast with MS Copilot approach).
 
-Local model: Runs on Pi (Gemma or similar small language model). Analyzes content streams to understand context, relationships, and user intent. Examples: recognizing photo gallery vs UI icon usage of images, understanding document flow for multi-page PDFs, predicting likely next action based on interaction patterns. This model maintains spatial awareness (physical device locations, user gaze/attention in VR/AR scenarios) and routes content appropriately.
+Local model: Runs on dedicated node - think (i7-8700, 32GB) or jetsone (Orin Nano Super, 8GB ARM). Gemma or similar small language model analyzes content streams to understand context, relationships, and user intent. Examples: recognizing photo gallery vs UI icon usage of images, understanding document flow for multi-page PDFs, predicting likely next action based on interaction patterns. This model maintains spatial awareness (physical device locations, user gaze/attention in VR/AR scenarios) and routes content appropriately.
 
 Micro models: Tiny ML models (<10KB, <1µs inference) handling specific optimization tasks. Reflex project provides forge pipeline for training these. Applications: adaptive network batching (adjust flush thresholds based on traffic patterns), compression codec selection (choose algorithm based on content type), latency prediction and compensation (client-side prediction for input handling). These operate in hot paths where traditional heuristics fail and full models are too slow.
 
-Distributed intelligence: Gemma (Pi) handles orchestration and spatial reasoning. Reflex models optimize real-time performance in Spirit's render loop. Future: app-specific models can register with Spirit to provide domain knowledge (CAD app provides spatial layout hints, video editor provides temporal relationship data). Models communicate via same CRDT-backed state as UI elements, enabling emergent collaborative reasoning.
+Distributed intelligence: Gemma (on think or jetsone) handles orchestration and spatial reasoning. Reflex models optimize real-time performance in Spirit's render loop. Future: app-specific models can register with Spirit to provide domain knowledge (CAD app provides spatial layout hints, video editor provides temporal relationship data). Models communicate via same CRDT-backed state as UI elements, enabling emergent collaborative reasoning.
 
 This architecture supports progressive capability: Phase 1 has no AI (Spirit logs bubbles). Phase 2 adds basic compositor logic (spatial layout, rendering). Phase 3 integrates Gemma for intelligent routing. Phase 4 adds reflex models for optimization. Each phase is independently useful while building toward fully intelligent system.
 
@@ -104,19 +118,39 @@ WebAssembly app migration: compile apps to Wasm, enable live migration between n
 
 Protocol evolution and versioning: current TLV has no version field. Adding new message types is safe (parsers ignore unknown). Changing existing type structure breaks compatibility. Solutions: (A) version in handshake (initial connection negotiates protocol version), (B) versioned types (TextV1, TextV2 as distinct type IDs), (C) capability negotiation (endpoints declare supported features). Defer until backward compatibility becomes real concern.
 
-## Next Steps (Phase 2)
+## Phase 2: Rendering (Next)
 
-Implement wgpu rendering in Spirit. Initialize graphics context (Winit backend for development window). Create render pipeline for textured quads. When TextMessage arrives, rasterize to texture on CPU, upload to GPU, create scene graph entry with position/size. Render loop draws all active bubbles. This proves visual output works.
+**Primary goal:** Spirit displays bubbles visually.
 
-Test CRDT state synchronization. Run two hello-bubble instances concurrently sending to same Spirit. Messages arrive interleaved. Spirit must maintain coherent scene graph regardless of arrival order. Integrate CRDT library (likely automerge-rs for initial attempt). Wrap scene graph in CRDT document. Apps send state updates (add bubble, move bubble, remove bubble) as CRDT operations. Spirit merges operations and renders current state.
+**Tasks:**
+- Implement wgpu rendering in Spirit
+- Initialize graphics context (Winit backend for development window)
+- Create render pipeline for textured quads
+- When TextMessage arrives: rasterize to texture on CPU, upload to GPU, create scene graph entry with position/size
+- Render loop draws all active bubbles
+- Test on jetsone rendering node (validate ARM + GPU rendering works)
 
-Benchmark Soft-RoCE vs TCP. Measure round-trip latency and CPU utilization for both transports on localhost. If RXE provides <10 microsecond latency with acceptable CPU overhead, deploy. If not, remain on TCP and plan for hardware RDMA cards (Mellanox ConnectX-3 available used ~$30).
+**Success criteria:** hello-bubble sends text, Spirit displays it in window on both main and jetsone.
 
-Add input handling. Spirit receives keyboard/mouse events from OS, determines which bubble has focus, sends input events back to originating app. This completes basic interaction loop: app emits content, Spirit displays, user interacts, Spirit routes input to app, app updates content.
+## Future Phases
 
-Extend message types. Add Geometry (glTF or custom mesh format for 3D content). Add Notification (ephemeral messages with timeout). Add InputRequest (app asks for text input, Spirit presents appropriate UI: text field on desktop, voice input in VR, keyboard on phone).
+**CRDT State Synchronization:**
+Run two hello-bubble instances concurrently sending to same Spirit. Messages arrive interleaved. Spirit must maintain coherent scene graph regardless of arrival order. Integrate CRDT library (likely automerge-rs for initial attempt). Wrap scene graph in CRDT document. Apps send state updates (add bubble, move bubble, remove bubble) as CRDT operations. Spirit merges operations and renders current state.
 
-Test multi-device scenario. Run Spirit on Jetson connected to monitor. Run hello-bubble on PC (different machine, local network). Bubbles appear on Jetson display. This validates true network transparency with physical separation.
+**RDMA Transport:**
+Benchmark Soft-RoCE vs TCP. Measure round-trip latency and CPU utilization for both transports on localhost and across nodes. If RXE provides acceptable latency with manageable CPU overhead, deploy. If not, remain on TCP and plan for hardware RDMA cards (Mellanox ConnectX-4 cards available used).
+
+**Input Handling:**
+Spirit receives keyboard/mouse events from OS, determines which bubble has focus, sends input events back to originating app. This completes basic interaction loop: app emits content, Spirit displays, user interacts, Spirit routes input to app, app updates content.
+
+**Extended Message Types:**
+Add Geometry (glTF or custom mesh format for 3D content). Add Notification (ephemeral messages with timeout). Add InputRequest (app asks for text input, Spirit presents appropriate UI: text field on desktop, voice input in VR, keyboard on phone).
+
+**Multi-Device Testing:**
+Run Spirit on jetsone connected to monitor. Run hello-bubble on main (different machine, local network). Bubbles appear on jetsone display. This validates true network transparency with physical separation.
+
+**VR/AR Integration:**
+Quest 3 spatial input, room scanning, gesture recognition. Gemma orchestration on think or jetsone for intelligent spatial composition.
 
 ## Notes for Future Sonnies
 

@@ -90,7 +90,7 @@ One `ls -al` shows everything. No nested folders.
 2. **Image** - Width, height, RGBA pixel data
 3. Future: Geometry, notifications, input requests
 
-**Transport:** Currently TCP (standard networking). Future: RDMA/RoCE for <10µs latency.
+**Transport:** Currently TCP (standard networking). Future: RDMA/RoCE targeting <10µs latency (based on ConnectX-4 specs, not yet tested).
 
 ---
 
@@ -103,10 +103,15 @@ One `ls -al` shows everything. No nested folders.
 - ✅ Inspector tooling (bubble-dump)
 - ✅ Example app (hello-bubble)
 
-**Phase 2 goals:**
-- CRDTs for distributed state sync (multiple apps, convergence)
+**Phase 2 (Next):**
 - wgpu rendering (Spirit actually displays bubbles)
+- Initial testing on jetsone rendering node
+
+**Future Phases:**
+- CRDTs for distributed state sync (multiple apps, convergence)
 - RDMA transport upgrade (zero-copy networking)
+- VR/AR input integration (Quest 3)
+- Local AI orchestration (Gemma on think/jetsone)
 
 ---
 
@@ -140,11 +145,6 @@ Chi:
 
 ---
 
-## Relation to CHORUS
+## Project Status
 
-Chi is the **spatial ganglion** of the CHORUS architecture:
-- Chronome = transport protocol (future: RDMA-backed)
-- Flux = state sync protocol (future: CRDT operations)
-- Chi = the UI layer (compositor, renderer, input)
-
-See `/home/u/code/chorus/` for CHORUS meta-architecture.
+Chi is a standalone distributed spatial computing substrate. Future integration with other distributed systems projects is possible but not currently scoped.
