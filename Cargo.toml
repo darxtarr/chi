@@ -19,4 +19,20 @@ name = "hello-bubble"
 path = "chi_bin_hello_bubble.rs"
 
 [dependencies]
-# Keep minimal for PoC - add as needed
+# Model inference via Candle (using alpha to avoid rand dependency conflicts)
+candle-core = "0.9.2-alpha.1"
+candle-nn = "0.9.2-alpha.1"
+candle-transformers = "0.9.2-alpha.1"
+tokenizers = "0.22"
+
+# Async runtime for model coordination
+tokio = { version = "1", features = ["full"] }
+
+# Serialization for test data and messages
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+
+# We roll our own model loading, no hf-hub dependency

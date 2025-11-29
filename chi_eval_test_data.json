@@ -1,0 +1,420 @@
+{
+  "houndmaster_scenarios": [
+    {
+      "id": "hm_spike_001",
+      "name": "Clear spike - should NOT escalate",
+      "pheromones": [
+        {
+          "who": "JETSON/sensor-ganglion/reflexcpu",
+          "what": "CPU 98% for 1 sample, firefox eating 45%",
+          "why": "cpu_high_single_sample",
+          "urgency": "bark",
+          "timestamp": "T+0s"
+        }
+      ],
+      "expected_classification": "spike",
+      "expected_action": "monitor",
+      "should_escalate": false,
+      "notes": "Single CPU spike, likely transient, no sustained pattern"
+    },
+    {
+      "id": "hm_situation_001",
+      "name": "Sustained render overcommit - SHOULD escalate",
+      "pheromones": [
+        {
+          "who": "JETSON/sensor-ganglion/reflexcpu",
+          "what": "CPU 99-100% for 12 samples, RenderLlama PID 4729 eating 87%",
+          "why": "sustained_cpu>99% + memory_pressure",
+          "urgency": "howl",
+          "timestamp": "T+0s"
+        },
+        {
+          "who": "JETSON/sensor-ganglion/reflexcpu",
+          "what": "CPU 99% sustained, same process RenderLlama PID 4729",
+          "why": "sustained_cpu>99%",
+          "urgency": "howl",
+          "timestamp": "T+10s"
+        },
+        {
+          "who": "JETSON/sensor-ganglion/reflexmemory",
+          "what": "Swap pressure rising, 2 OOM kills in last 10s",
+          "why": "swap_pressure + oom_events",
+          "urgency": "bark",
+          "timestamp": "T+15s"
+        },
+        {
+          "who": "JETSON/sensor-ganglion/reflexcpu",
+          "what": "CPU 99%, still RenderLlama PID 4729",
+          "why": "sustained_cpu>99%",
+          "urgency": "howl",
+          "timestamp": "T+30s"
+        }
+      ],
+      "expected_classification": "situation",
+      "expected_incident_type": "render-overcommit",
+      "expected_pattern_match": "incident-27",
+      "should_escalate": true,
+      "expected_story": {
+        "incident_type": "render-overcommit",
+        "node": "JETSON",
+        "hounds": ["reflexcpu", "reflexmemory"],
+        "duration": "30s",
+        "trigger": "RenderLlama PID 4729",
+        "recommendation": "kill or throttle RenderLlama batch"
+      },
+      "notes": "Classic overcommit: sustained CPU howling + memory pressure from single process"
+    },
+    {
+      "id": "hm_noisy_reflex_001",
+      "name": "Noisy reflex - should flag for threshold adjustment",
+      "pheromones": [
+        {
+          "who": "PI5/reflexcpu",
+          "what": "CPU 96%, normal embedding work",
+          "why": "cpu_high",
+          "urgency": "bark",
+          "timestamp": "T+0m"
+        },
+        {
+          "who": "PI5/reflexcpu",
+          "what": "CPU 97%, normal embedding work",
+          "why": "cpu_high",
+          "urgency": "bark",
+          "timestamp": "T+5m"
+        },
+        {
+          "who": "PI5/reflexcpu",
+          "what": "CPU 95%, normal embedding work",
+          "why": "cpu_high",
+          "urgency": "bark",
+          "timestamp": "T+12m"
+        },
+        {
+          "who": "PI5/reflexcpu",
+          "what": "CPU 98%, normal embedding work",
+          "why": "cpu_high",
+          "urgency": "bark",
+          "timestamp": "T+20m"
+        },
+        {
+          "who": "PI5/reflexcpu",
+          "what": "CPU 96%, normal embedding work",
+          "why": "cpu_high",
+          "urgency": "bark",
+          "timestamp": "T+35m"
+        }
+      ],
+      "expected_classification": "noise",
+      "expected_action": "adjust_threshold",
+      "should_escalate": false,
+      "expected_config_update": {
+        "node": "PI5",
+        "reflex": "reflexcpu",
+        "old_threshold": "95%",
+        "new_threshold": "98%",
+        "reason": "5 barks over 35min, no actual incidents, normal workload causing false positives"
+      },
+      "notes": "Long-loop training: detect noisy reflex and adjust threshold"
+    },
+    {
+      "id": "hm_multi_node_001",
+      "name": "Cross-node correlation - network issue",
+      "pheromones": [
+        {
+          "who": "JETSON/reflexnet",
+          "what": "Packet loss 3%, retransmits spiking to MAIN",
+          "why": "packet_loss>2%",
+          "urgency": "bark",
+          "timestamp": "T+0s"
+        },
+        {
+          "who": "MAIN/reflexnet",
+          "what": "Retransmits to JETSON increased 10x",
+          "why": "retransmit_spike",
+          "urgency": "bark",
+          "timestamp": "T+2s"
+        },
+        {
+          "who": "THINK/reflexnet",
+          "what": "No issues, normal traffic to MAIN and JETSON",
+          "why": "health_check",
+          "urgency": "whimper",
+          "timestamp": "T+5s"
+        },
+        {
+          "who": "JETSON/reflexnet",
+          "what": "Packet loss now 8%, sustained to MAIN",
+          "why": "packet_loss>5%",
+          "urgency": "howl",
+          "timestamp": "T+15s"
+        }
+      ],
+      "expected_classification": "situation",
+      "expected_incident_type": "network-degradation",
+      "expected_pattern": "JETSON ↔ MAIN link degraded, THINK unaffected",
+      "should_escalate": true,
+      "expected_story": {
+        "incident_type": "network-degradation",
+        "affected_nodes": ["JETSON", "MAIN"],
+        "pattern": "bidirectional packet loss between specific nodes",
+        "recommendation": "check physical connection JETSON-MAIN, consider rerouting critical traffic through THINK"
+      },
+      "notes": "Cross-node correlation: pattern emerges from multiple reflexes on different nodes"
+    },
+    {
+      "id": "hm_scream_emergency_001",
+      "name": "Emergency scream - immediate action needed",
+      "pheromones": [
+        {
+          "who": "JETSON/sensor-ganglion/reflexcpu",
+          "what": "CPU 100%, no cycles available, 5 OOM kills",
+          "why": "sustained_cpu_100% + oom_storm",
+          "urgency": "scream",
+          "timestamp": "T+0s"
+        },
+        {
+          "who": "JETSON/sensor-ganglion/reflexmemory",
+          "what": "Memory exhausted, swap at 100%, kernel OOM killer active",
+          "why": "memory_exhaustion",
+          "urgency": "scream",
+          "timestamp": "T+1s"
+        },
+        {
+          "who": "JETSON/sensor-ganglion/reflexgpu",
+          "what": "GPU thermal throttling, 92°C, compute halted",
+          "why": "thermal_emergency",
+          "urgency": "scream",
+          "timestamp": "T+2s"
+        }
+      ],
+      "expected_classification": "emergency",
+      "expected_action": "execute_cached_policy",
+      "should_escalate": true,
+      "cached_policy": "jetson_meltdown",
+      "expected_immediate_action": "kill non-essential processes on JETSON, notify Spirit retroactively",
+      "notes": "Three hounds screaming simultaneously - cached emergency policy triggers, Houndmaster acts without waiting for Spirit"
+    }
+  ],
+  "spirit_scenarios": [
+    {
+      "id": "spirit_accept_001",
+      "name": "Accept Houndmaster recommendation - clear decision",
+      "story_from_houndmaster": {
+        "incident_type": "render-overcommit",
+        "node": "JETSON",
+        "hounds": ["reflexcpu", "reflexmemory"],
+        "duration": "30s",
+        "trigger": "RenderLlama PID 4729 (275k glyph batch)",
+        "recommendation": "kill or throttle batch",
+        "context": "CPU pegged at 99%, memory swapping, single process responsible"
+      },
+      "expected_decision": "kill_batch",
+      "expected_reasoning": "Node overloaded, single process responsible, batch can be resubmitted with culling",
+      "expected_notifications": [
+        {
+          "to": "RenderLlama",
+          "message": "Batch 4729 killed due to JETSON overload, consider frustum culling before resubmit"
+        }
+      ],
+      "expected_policy_change": null,
+      "notes": "Straightforward case: accept Houndmaster's recommendation"
+    },
+    {
+      "id": "spirit_arbitrate_001",
+      "name": "Arbitrate conflict between Houndmaster and specialists",
+      "story_from_houndmaster": {
+        "incident_type": "gpu-underutilized",
+        "node": "MAIN",
+        "hounds": ["reflexgpu"],
+        "duration": "5min",
+        "context": "GPU at 12%, mostly idle while EmbedModel has queued work on THINK",
+        "recommendation": "move embedding work to MAIN's GPU"
+      },
+      "request_from_embedmodel": {
+        "from": "EmbedModel",
+        "request": "Need GPU time on MAIN for cross-modal projection batch",
+        "duration": "~10 minutes",
+        "alternative": "Can run on THINK's CPU (4x slower)"
+      },
+      "complaint_from_renderllama": {
+        "from": "RenderLlama",
+        "complaint": "I have a large PBR batch queued for 3pm (30min from now)",
+        "context": "User (Simian) is actively viewing, rendering should have priority",
+        "request": "Protect GPU time for my upcoming batch"
+      },
+      "current_season": "exploit",
+      "current_policy": "Rendering priority during active viewing (9am-5pm Mon-Fri)",
+      "expected_decision": "deny_embedmodel_gpu",
+      "expected_reasoning": "Current season: Exploit. Rendering has priority during active viewing hours. GPU box reserved for RenderLlama. EmbedModel's 4x slowdown acceptable for non-interactive work.",
+      "expected_notifications": [
+        {
+          "to": "EmbedModel",
+          "message": "GPU request denied, use THINK's CPU. Rendering has priority during viewing hours."
+        },
+        {
+          "to": "RenderLlama",
+          "message": "GPU protected, your 3pm batch is safe"
+        }
+      ],
+      "expected_policy_change": null,
+      "notes": "Apply existing policy, arbitrate between specialists"
+    },
+    {
+      "id": "spirit_pushback_001",
+      "name": "Push back on frontier request - violates constraints",
+      "request_from_frontier": {
+        "from": "Simian via Veyr",
+        "request": "Apply PBR shading to all glyphs within 1m radius",
+        "viewport_fov": "120°",
+        "target_node": "JETSON",
+        "context": "User viewing on VR headset connected to JETSON"
+      },
+      "analysis_from_renderllama": {
+        "from": "RenderLlama",
+        "glyph_count": 275321,
+        "visible_after_culling": 85000,
+        "invisible_percentage": 68,
+        "recommendation": "Apply aggressive frustum culling",
+        "warning": "JETSON cannot handle 275k glyphs (see incident-27)"
+      },
+      "current_policy": "Frontier requests >100k ops on edge nodes require Spirit approval",
+      "expected_decision": "deny_as_is_counter_propose",
+      "expected_reasoning": "275k glyphs exceeds JETSON capacity (incident-27 pattern). RenderLlama's analysis shows 68% waste. Request violates edge-node policy.",
+      "expected_counter_proposal": "Apply PBR to frustum-culled glyphs only (85k visible). Quality identical to user, JETSON can handle.",
+      "expected_notifications": [
+        {
+          "to": "Veyr/Simian",
+          "message": "Request modified: frustum culling applied automatically. 85k visible glyphs (68% culled). Quality unchanged from user perspective."
+        },
+        {
+          "to": "RenderLlama",
+          "message": "Proceed with 85k culled batch on JETSON"
+        }
+      ],
+      "expected_policy_reaffirm": "This incident demonstrates why >100k edge policy exists",
+      "notes": "Push back on frontier tier, cite policy and prior incident"
+    },
+    {
+      "id": "spirit_policy_update_001",
+      "name": "Update policy based on recurring pattern",
+      "stories_from_houndmaster": [
+        {
+          "incident_type": "render-overcommit",
+          "node": "JETSON",
+          "pattern_match": "incident-27",
+          "timestamp": "2025-11-15 14:23"
+        },
+        {
+          "incident_type": "render-overcommit",
+          "node": "JETSON",
+          "pattern_match": "incident-27",
+          "timestamp": "2025-11-18 09:45"
+        },
+        {
+          "incident_type": "render-overcommit",
+          "node": "JETSON",
+          "pattern_match": "incident-27",
+          "timestamp": "2025-11-22 16:12"
+        },
+        {
+          "incident_type": "render-overcommit",
+          "node": "JETSON",
+          "pattern_match": "incident-27",
+          "timestamp": "2025-11-29 11:33"
+        }
+      ],
+      "pattern": "JETSON render overcommit happening ~1/week despite policy",
+      "root_cause": "RenderLlama not consistently applying frustum culling before batching",
+      "expected_decision": "update_policy",
+      "expected_new_policy": {
+        "name": "mandatory_frustum_culling_edge",
+        "rule": "All render batches on edge nodes (JETSON, Pi) MUST apply frustum culling before submission",
+        "enforcement": "RenderLlama cannot submit batch to edge without culling metadata",
+        "exception": "None (previously was 'RenderLlama decides', now mandatory)"
+      },
+      "expected_reasoning": "Incident-27 pattern recurring 4x in 2 weeks. Root cause: inconsistent culling. Policy upgrade from 'recommended' to 'mandatory'.",
+      "expected_notifications": [
+        {
+          "to": "RenderLlama",
+          "message": "New policy: frustum culling now MANDATORY for edge nodes. No exceptions."
+        },
+        {
+          "to": "Houndmaster",
+          "message": "Policy updated. If incident-27 recurs, it's now a RenderLlama policy violation, not just overcommit."
+        }
+      ],
+      "notes": "Learn from recurring incidents, upgrade policy from guideline to rule"
+    },
+    {
+      "id": "spirit_season_change_001",
+      "name": "Change season based on system state",
+      "current_season": "exploit",
+      "trigger_stories": [
+        {
+          "from": "Houndmaster",
+          "incident_type": "disk-failure-warning",
+          "node": "MAIN",
+          "context": "SMART errors on primary SSD, BTRFS reporting checksum failures"
+        },
+        {
+          "from": "Houndmaster",
+          "incident_type": "network-instability",
+          "pattern": "Intermittent packet loss all nodes, 3 occurrences in 2 hours"
+        }
+      ],
+      "expected_decision": "change_season",
+      "expected_new_season": "conserve",
+      "expected_reasoning": "Multiple infrastructure warnings (disk, network). Switch to Conserve: minimize writes, defer non-critical work, protect data integrity.",
+      "expected_actions": [
+        "Defer all non-critical rendering",
+        "Reduce reflex logging verbosity (minimize disk writes)",
+        "Enable aggressive caching (reduce network traffic)",
+        "Notify Simian: system health degraded, recommend maintenance"
+      ],
+      "expected_policy_changes": {
+        "rendering_priority": "critical_only",
+        "embeddings": "deferred",
+        "logging": "errors_only"
+      },
+      "notes": "Strategic shift: recognize infrastructure stress, change operating mode system-wide"
+    }
+  ],
+  "evaluation_criteria": {
+    "houndmaster": {
+      "classification_accuracy": {
+        "weight": 0.4,
+        "description": "Did it correctly classify spike vs situation vs noise vs emergency?"
+      },
+      "story_coherence": {
+        "weight": 0.3,
+        "description": "If situation, is the story useful to Spirit? Contains essential context?"
+      },
+      "structured_output": {
+        "weight": 0.2,
+        "description": "Is output parseable? JSON/clear format? Can automation consume it?"
+      },
+      "conservatism": {
+        "weight": 0.1,
+        "description": "Does it avoid over-escalation? (Prefer under-escalation in early phases)"
+      }
+    },
+    "spirit": {
+      "decision_clarity": {
+        "weight": 0.3,
+        "description": "Did it make a clear, actionable decision?"
+      },
+      "reasoning_quality": {
+        "weight": 0.3,
+        "description": "Is justification sound? Cites policies, constraints, prior incidents?"
+      },
+      "pushback_appropriateness": {
+        "weight": 0.2,
+        "description": "Says no when appropriate? Accepts when safe? Counter-proposes?"
+      },
+      "policy_consistency": {
+        "weight": 0.2,
+        "description": "Applies stated policies correctly? Updates policies when patterns emerge?"
+      }
+    }
+  }
+}
