@@ -1,0 +1,204 @@
+# Chi Repository Specification v1
+# LLM-native capsule format
+# Generated: 2025-12-06
+
+[project]
+name = "Chi"
+tagline = "Distributed Spatial Computing Substrate"
+purpose = "Semantic compositor where apps emit bubbles and Spirit decides presentation"
+scope = "TCP/TLV protocol, text/image messages, future: wgpu rendering, CRDT sync, VR/AR"
+authors = "LLM-authored (Sonnet, Opus, Veyr); human-supervised"
+status = "Phase 1 complete (network transparency PoC); Phase 2 next (rendering)"
+core_thesis = "Apps don't know about screens or pixels. They emit semantic content. Spirit composes reality."
+
+[structure]
+layout = "Flat, LLM-native (no src/ nesting)"
+naming = "chi_{category}_{name}.{ext}"
+categories = ["bin", "lib", "docs", "model", "lore"]
+
+[files]
+# Binaries
+chi_bin_spirit.rs = "The compositor daemon. Listens TCP:7777, receives bubbles, logs (future: renders)"
+chi_bin_hello_bubble.rs = "Example app. Sends text bubbles to Spirit"
+chi_bin_bubbledump.rs = "Protocol inspector. Decodes TLV frames for debugging"
+
+# Libraries
+chi_lib_tlv_framing.rs = "TLV codec. encode_frame(), decode_frame(), write_frame()"
+chi_lib_message_types.rs = "Message definitions. TextMessage, ImageMessage"
+lib.rs = "Module manifest. Re-exports chi_lib_* modules"
+
+# Models
+chi_model_cradle.rs = "Cradle data structures (UI/panel concepts, work-in-progress)"
+
+# Documentation
+chi_docs_text_architecture.md = "Semantic text preservation + vector rendering architecture"
+chi_docs_bubbles_semantic_units.md = "Bubbles-with-provenance design (core concept)"
+chi_docs_development.md = "Hardware testbed, phases, current status"
+chi_docs_spirit_ecology.md = "Spirit's role in the distributed nervous system"
+chi_docs_spirit_interface.md = "Spirit's API and interaction patterns"
+chi_docs_spirit_gemma_reflexes.md = "How Spirit, Gemma, and Reflexes coordinate"
+chi_docs_ui_philosophy.md = "UI design principles for Chi"
+chi_docs_vr_ar_progression.md = "Roadmap for VR/AR integration"
+chi_docs_infra_discussion.md = "Infrastructure decisions and trade-offs"
+chi_docs_architecture_discussion_2025-11-29.md = "Architecture session notes"
+chi_docs_architecture_dump_ui_workflow.md = "UI workflow design dump"
+
+# Lore (narrative documentation)
+chi_lore_houndmaster_and_the_howling.md = "Philosophy-as-story: How monitoring layer thinks"
+
+[groups]
+core_code = [
+  "chi_lib_tlv_framing.rs",
+  "chi_lib_message_types.rs",
+  "lib.rs",
+]
+
+binaries = [
+  "chi_bin_spirit.rs",
+  "chi_bin_hello_bubble.rs",
+  "chi_bin_bubbledump.rs",
+]
+
+docs_architecture = [
+  "chi_docs_text_architecture.md",
+  "chi_docs_bubbles_semantic_units.md",
+  "chi_docs_development.md",
+]
+
+docs_spirit = [
+  "chi_docs_spirit_ecology.md",
+  "chi_docs_spirit_interface.md",
+  "chi_docs_spirit_gemma_reflexes.md",
+]
+
+docs_ui = [
+  "chi_docs_ui_philosophy.md",
+  "chi_docs_architecture_dump_ui_workflow.md",
+]
+
+docs_future = [
+  "chi_docs_vr_ar_progression.md",
+  "chi_docs_infra_discussion.md",
+]
+
+[profiles]
+overview = {
+  include = ["README.md", "chi_docs_development.md"],
+  purpose = "Quick orientation to Chi's purpose and current state",
+}
+
+protocol = {
+  include = ["core_code", "binaries"],
+  purpose = "Understand/modify the TLV protocol and message types",
+}
+
+architecture = {
+  include = ["docs_architecture"],
+  purpose = "Deep dive on text rendering and bubble semantics",
+}
+
+spirit = {
+  include = ["docs_spirit", "chi_bin_spirit.rs"],
+  purpose = "Understand Spirit's role and implementation",
+}
+
+rendering = {
+  include = ["chi_docs_text_architecture.md", "core_code"],
+  extra = ["../solidus/README.md", "../solidus/FORMAT.md"],
+  purpose = "Connect Solidus geometry to Chi rendering",
+}
+
+optimize_tlv = {
+  include = ["chi_lib_tlv_framing.rs", "chi_lib_message_types.rs"],
+  purpose = "Micro-optimization pass on protocol hot paths",
+}
+
+[fn chi_encode_frame]
+role = "Encode message type + payload into TLV wire format"
+inputs = ["msg_type: MessageType (u8)", "payload: &[u8]"]
+outputs = ["Vec<u8>: [type:1][length:4][payload:N]"]
+hot_path = true
+optimization_notes = [
+  "Currently allocates Vec per call",
+  "Could write directly to caller-provided buffer",
+  "Length is big-endian (network byte order)",
+]
+
+[fn chi_decode_frame]
+role = "Decode TLV frame from reader"
+inputs = ["reader: impl Read"]
+outputs = ["(MessageType, Vec<u8>)"]
+hot_path = true
+optimization_notes = [
+  "Currently 3 read_exact() calls (type, length, payload)",
+  "Could coalesce to 2 (header + payload)",
+  "Allocates Vec for payload each call",
+]
+
+[fn chi_write_frame]
+role = "Write TLV frame to writer and flush"
+inputs = ["writer: impl Write", "msg_type: MessageType", "payload: &[u8]"]
+outputs = ["io::Result<()>"]
+hot_path = true
+optimization_notes = [
+  "Calls encode_frame() then write_all() - double handling",
+  "Flushes after every frame - expensive on TCP",
+  "Could write header+payload directly, let caller flush",
+]
+
+[phases]
+phase1 = {
+  status = "COMPLETE",
+  deliverables = ["TLV protocol", "TCP transport", "Text+Image messages", "Inspector tool"],
+}
+
+phase2 = {
+  status = "NEXT",
+  deliverables = ["wgpu rendering", "Solidus integration", "Font shaping (rustybuzz)"],
+  blockers = ["Need to load .nurbs.json from Solidus", "Need tessellation or GPU curve eval"],
+}
+
+phase3 = {
+  status = "FUTURE",
+  deliverables = ["CRDTs for distributed state", "Multi-node sync"],
+}
+
+phase4 = {
+  status = "FUTURE",
+  deliverables = ["VR/AR input (Quest 3)", "3D bubble placement"],
+}
+
+phase5 = {
+  status = "FUTURE",
+  deliverables = ["Gemma integration", "Reflex coordination"],
+}
+
+[hardware]
+main = { cpu = "Ryzen 7800X3D", gpu = "RTX 4080", ram = "64GB", ip = "192.168.178.95", role = "Development" }
+think = { cpu = "i7-8700", ram = "32GB", ip = "192.168.178.45", role = "Network testbed, Gemma candidate" }
+jetsone = { type = "Orin Nano Super", ram = "8GB ARM", ips = ["192.168.178.93", "192.168.178.94"], role = "Rendering node" }
+
+[vocabulary]
+bubble = "Semantic unit with identity, provenance, and lineage"
+spirit = "The compositor daemon that receives bubbles and decides presentation"
+pheromone = "Structured signal emitted by reflexes/ganglia (a type of bubble)"
+ganglion = "Semi-autonomous module/daemon (reflex, sensor, controller)"
+houndmaster = "Mid-level intelligence (Gemma) that correlates reflex outputs"
+
+---
+
+# Usage Notes for LLMs
+
+When starting a Chi session:
+1. Load this spec (~2K tokens)
+2. Select profile matching task (protocol, architecture, rendering, etc.)
+3. Load files from that profile's include list
+4. Check [phases] for current status and blockers
+
+When modifying Chi:
+- Keep flat structure (no src/ nesting)
+- Use chi_{category}_{name}.{ext} naming
+- Update this spec when adding/removing files
+- Add [fn ...] entries for significant functions
+
+Key insight: Chi is the front-end of a semantic OS. Everything visible is a bubble. Spirit doesn't render pixels; it composes meaning.
